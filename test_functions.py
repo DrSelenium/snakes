@@ -1,0 +1,30 @@
+import main
+
+# Test SVG content
+svg_content = '''<svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="end" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M 0 0 L 8 4 L 0 8" />
+    </marker>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 0 0 L 32 0 32 32 0 32 0 0" fill="none" stroke="#ccc" stroke-width="1" />
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#grid)" />
+  <line x1="112" y1="48" x2="80" y2="16" stroke="BLUE" marker-end="url(#end)" />
+  <line x1="48" y1="16" x2="16" y2="48" stroke="YELLOW" marker-end="url(#end)" />
+  <line x1="48" y1="80" x2="80" y2="48" stroke="AQUA" marker-end="url(#end)" />
+  <line x1="80" y1="112" x2="112" y2="80" stroke="RED" marker-end="url(#end)" />
+  <line x1="16" y1="80" x2="48" y2="112" stroke="GREEN" marker-end="url(#end)" />
+  <line x1="48" y1="48" x2="80" y2="80" stroke="ORANGE" marker-end="url(#end)" />
+</svg>'''
+
+# Test parsing
+board_data = main.parse_svg_board(svg_content)
+print(f"Board size: {board_data['board_size']}")
+print(f"Jumps: {board_data['jumps']}")
+
+# Test roll generation
+rolls = main.generate_rolls(board_data['board_size'], 2, board_data['jumps'])
+print(f"Generated rolls: {rolls}")
+print(f"Roll count: {len(rolls)}")

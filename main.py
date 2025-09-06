@@ -3,49 +3,101 @@ import random
 
 app = Flask(__name__)
 
+def parse_svg_board(svg_content):
+    """Parse SVG content to extract board size and jumps."""
+    import re
+    from xml.etree import ElementTree as ET
+    
+    # Parse SVG
+    root = ET.fromstring(svg_content)
+    viewBox = root.get('viewBox')
+    if viewBox:
+        _, _, width, height = map(int, viewBox.split())
+        # Each square is 32 units, so board dimensions are width/32 x height/32
+        board_width = width // 32
+        board_height = height // 32
+        board_size = board_width * board_height
+    else:
+        # Default fallback
+        board_size = 256
+    
+    jumps = []
+    
+    # Find all line elements (jumps)
+    for line in root.findall('.//{http://www.w3.org/2000/svg}line'):
+        x1 = int(float(line.get('x1')))
+        y1 = int(float(line.get('y1')))
+        x2 = int(float(line.get('x2')))
+        y2 = int(float(line.get('y2')))
+        
+        # Convert coordinates to square numbers
+        start_square = coord_to_square(x1, y1, board_width, board_height)
+        end_square = coord_to_square(x2, y2, board_width, board_height)
+        
+        jumps.append(f"{start_square}:{end_square}")
+    
+    return {
+        'board_size': board_size,
+        'jumps': jumps
+    }
+
+def coord_to_square(x, y, width, height):
+    """Convert SVG coordinates to square number (1-based)."""
+    # Squares are 32x32, coordinates are from top-left of square
+    col = x // 32
+    row = y // 32
+    
+    # Boustrophedon pattern: even rows go left to right, odd rows right to left
+    if row % 2 == 0:
+        square = row * width + col + 1
+    else:
+        square = row * width + (width - 1 - col) + 1
+    
+    return square
+
 def parse_jumps(jumps, board_size):
     """Parse jumps into a dictionary mapping start to end positions."""
     jump_map = {}
     for jump in jumps:
         start, end = map(int, jump.split(':'))
-        if end == 0:  # Smoke or Mirror
-            jump_map[start] = end
-        else:
-            jump_map[start] = end
+        jump_map[start] = end
     return jump_map
 
 def apply_jump(position, jump_map, die_roll, board_size):
-    """Apply a jump (Snake, Ladder, Smoke, Mirror) from the current position."""
+    """Apply a jump (Snake or Ladder) from the current position."""
     if position in jump_map:
-        target = jump_map[position]
-        if target == 0:  # Smoke (move backward by next roll)
-            next_roll = die_roll  # Use same roll for simplicity in simulation
-            new_position = position - next_roll
-            return max(1, new_position)  # Ensure not going before square 1
-        elif target > 0 and jump_map[position] == position:  # Mirror (move forward by next roll)
-            next_roll = die_roll  # Use same roll for simplicity
-            new_position = position + next_roll
-            return min(board_size, new_position)  # Ensure not going past board
-        else:  # Snake or Ladder
-            return jump_map[position]
+        return jump_map[position]
     return position
 
 def simulate_game(board_size, players, jumps, rolls):
     """Simulate the game with given rolls and return final positions and squares landed."""
     jump_map = parse_jumps(jumps, board_size)
-    positions = [1] * players  # All players start at square 1
+    positions = [0] * players  # Players start before square 1
     squares_landed = set()  # Track unique squares landed for scoring
     roll_index = 0
     player = 0
-
+    player_die_types = ['regular'] * players  # Track each player's current die type
+    
     while roll_index < len(rolls):
         # Current player's turn
         current_position = positions[player]
         die_roll = rolls[roll_index]
         roll_index += 1
-
-        # Move by die roll
-        new_position = current_position + die_roll
+        
+        # Determine movement based on die type
+        if player_die_types[player] == 'regular':
+            movement = die_roll
+            # Power up if rolled 6
+            if die_roll == 6:
+                player_die_types[player] = 'power'
+        else:  # power die
+            movement = 2 ** die_roll
+            # Revert to regular if rolled 1
+            if die_roll == 1:
+                player_die_types[player] = 'regular'
+        
+        # Move by calculated movement
+        new_position = current_position + movement
         if new_position > board_size:
             overshoot = new_position - board_size
             new_position = board_size - overshoot
@@ -54,8 +106,8 @@ def simulate_game(board_size, players, jumps, rolls):
         # Add position to squares landed
         squares_landed.add(new_position)
 
-        # Apply any jump (Snake, Ladder, Smoke, Mirror)
-        next_position = apply_jump(new_position, jump_map, die_roll, board_size)
+        # Apply any jump (Snake or Ladder)
+        next_position = apply_jump(new_position, jump_map, movement, board_size)
         if next_position != new_position:
             squares_landed.add(next_position)
 
@@ -73,44 +125,65 @@ def simulate_game(board_size, players, jumps, rolls):
 
 def generate_rolls(board_size, players, jumps):
     """Generate die rolls to make the last player win with optimal score."""
-    max_attempts = 1000  # Limit attempts to avoid infinite loops
+    max_attempts = 10000  # Increased attempts for better coverage
     best_rolls = []
-    best_score = 0
+    best_coverage = 0
     target_winner = players - 1  # Last player
 
-    for _ in range(max_attempts):
+    for attempt in range(max_attempts):
         rolls = []
-        positions = [1] * players
+        positions = [0] * players  # Start before square 1
+        player_die_types = ['regular'] * players
         current_player = 0
         attempt_rolls = 0
-        max_rolls = 100  # Prevent excessively long sequences
+        max_rolls = 200  # Allow longer sequences for better coverage
+        squares_landed = set()
 
         while attempt_rolls < max_rolls:
+            # Generate die roll (always 1-6)
             die_roll = random.randint(1, 6)
             rolls.append(die_roll)
 
-            # Simulate one move
+            # Determine movement based on die type
+            if player_die_types[current_player] == 'regular':
+                movement = die_roll
+                if die_roll == 6:
+                    player_die_types[current_player] = 'power'
+            else:  # power die
+                movement = 2 ** die_roll
+                if die_roll == 1:
+                    player_die_types[current_player] = 'regular'
+
+            # Move
             current_position = positions[current_player]
-            new_position = current_position + die_roll
+            new_position = current_position + movement
             if new_position > board_size:
                 overshoot = new_position - board_size
                 new_position = board_size - overshoot
             new_position = max(1, min(board_size, new_position))
 
+            squares_landed.add(new_position)
+
             # Apply jumps
             jump_map = parse_jumps(jumps, board_size)
-            next_position = apply_jump(new_position, jump_map, die_roll, board_size)
+            next_position = apply_jump(new_position, jump_map, movement, board_size)
+            if next_position != new_position:
+                squares_landed.add(next_position)
+            
             positions[current_player] = next_position
 
             # Check if any player has won
             if next_position == board_size:
-                # Simulate full game to get score
-                sim_positions, squares_landed, winner, _ = simulate_game(board_size, players, jumps, rolls)
+                # Simulate full game to verify
+                sim_positions, sim_squares_landed, winner, _ = simulate_game(board_size, players, jumps, rolls)
                 if winner == target_winner:
-                    score = board_size / len(squares_landed) if squares_landed else 0
-                    if score > best_score:
-                        best_score = score
+                    coverage = len(sim_squares_landed) / board_size
+                    if coverage > best_coverage:
+                        best_coverage = coverage
                         best_rolls = rolls.copy()
+                        # If we have good coverage, we can stop early
+                        if coverage >= 0.5:
+                            break
                 break
 
             current_player = (current_player + 1) % players
@@ -121,13 +194,15 @@ def generate_rolls(board_size, players, jumps):
 @app.route('/slpu', methods=['POST'])
 def slpu():
     """Handle POST request to /slpu endpoint."""
-    data = request.get_json()
-    board_size = data['boardSize']
-    players = data['players']
-    jumps = data['jumps']
+    svg_content = request.data.decode('utf-8')
+    
+    # Parse SVG to extract board data
+    board_data = parse_svg_board(svg_content)
+    board_size = board_data['board_size']
+    jumps = board_data['jumps']
 
-    # Generate die rolls
-    rolls = generate_rolls(board_size, players, jumps)
+    # Generate die rolls for 2 players
+    rolls = generate_rolls(board_size, 2, jumps)
 
     # Format as SVG
     rolls_str = ''.join(map(str, rolls))
@@ -136,7 +211,7 @@ def slpu():
 
 @app.route('/')
 def home():
-    return "Snakes and Ladders Server is running. Use POST to /slsm to generate rolls."
+    return "Snakes and Ladders Power Up! Server is running. Use POST to /slpu to generate rolls."
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
