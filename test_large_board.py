@@ -1,8 +1,8 @@
 import main
 from unittest.mock import Mock
 
-# Test with a larger SVG board (8x8 = 64 squares)
-svg_content_large = '''<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+# Test with a larger SVG board (16x16 = 256 squares)
+svg_content_large = '''<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <rect width="100%" height="100%" fill="#f0f0f0" />
   <line x1="224" y1="32" x2="192" y2="64" stroke="BLUE" />
   <line x1="96" y1="64" x2="64" y2="96" stroke="RED" />

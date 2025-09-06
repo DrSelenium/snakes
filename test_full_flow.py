@@ -15,7 +15,6 @@ svg_content = '''<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <line x1="224" y1="480" x2="192" y2="448" stroke="BLUE" marker-end="url(#end)" />
   <line x1="96" y1="448" x2="64" y2="416" stroke="RED" marker-end="url(#end)" />
   <line x1="96" y1="384" x2="128" y2="352" stroke="AQUA" marker-end="url(#end)" />
-  <line x1="160" y1="480" x2="192" y2="448" stroke="RED" marker-end="url(#end)" />
   <line x1="32" y1="384" x2="64" y2="352" stroke="GREEN" marker-end="url(#end)" />
   <line x1="96" y1="352" x2="128" y2="320" stroke="ORANGE" marker-end="url(#end)" />
 </svg>'''
