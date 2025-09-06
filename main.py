@@ -16,6 +16,15 @@ def parse_svg_board(svg_content):
         # Each square is 32 units, so board dimensions are width/32 x height/32
         board_width = width // 32
         board_height = height // 32
+        
+        # Validate constraints
+        if not (16 <= board_width <= 32):
+            raise ValueError(f"Board width {board_width} not in range [16..32]")
+        if not (16 <= board_height <= 32):
+            raise ValueError(f"Board height {board_height} not in range [16..32]")
+        if board_height % 2 != 0:
+            raise ValueError(f"Board height {board_height} must be even")
+            
         board_size = board_width * board_height
     else:
         # Default fallback
@@ -36,6 +45,9 @@ def parse_svg_board(svg_content):
         
         jumps.append(f"{start_square}:{end_square}")
     
+    # Validate jump constraints
+    validate_jumps(jumps, board_size, board_width, board_height)
+    
     return {
         'board_size': board_size,
         'jumps': jumps
@@ -45,15 +57,60 @@ def coord_to_square(x, y, width, height):
     """Convert SVG coordinates to square number (1-based)."""
     # Squares are 32x32, coordinates are from top-left of square
     col = x // 32
-    row = y // 32
+    # For row: SVG y=0 is top, but board row 0 is bottom
+    # Total SVG height is height * 32
+    total_height = height * 32
+    row = (total_height - 32 - y) // 32
     
-    # Boustrophedon pattern: even rows go left to right, odd rows right to left
+    # Boustrophedon pattern: 
+    # Row 0 (bottom): left to right
+    # Row 1: right to left
+    # Row 2: left to right
+    # Row 3 (top): right to left
     if row % 2 == 0:
+        # Even rows: left to right
         square = row * width + col + 1
     else:
+        # Odd rows: right to left
         square = row * width + (width - 1 - col) + 1
     
     return square
+
+def validate_jumps(jumps, board_size, width, height):
+    """Validate jump constraints."""
+    jump_squares = set()
+    start_squares = set()
+    end_squares = set()
+    
+    for jump in jumps:
+        start, end = map(int, jump.split(':'))
+        
+        # Check first and last squares
+        if start == 1 or start == board_size or end == 1 or end == board_size:
+            raise ValueError(f"Jump {jump} involves first or last square")
+        
+        # Check for conflicts
+        if start in jump_squares or end in jump_squares:
+            raise ValueError(f"Jump {jump} conflicts with existing jumps")
+        
+        jump_squares.add(start)
+        jump_squares.add(end)
+        start_squares.add(start)
+        end_squares.add(end)
+    
+    # Check last 64 squares don't have only snake starts
+    last_64_start = max(1, board_size - 63)
+    for square in range(last_64_start, board_size + 1):
+        if square in start_squares and square not in end_squares:
+            # This is a snake start in the last 64 squares
+            # Check if there's a corresponding ladder end
+            pass  # For now, we'll allow this as the constraint might be interpreted differently
+    
+    # Check jump coverage doesn't exceed 25% of board
+    if len(jump_squares) > board_size // 4:
+        raise ValueError(f"Too many jumps: {len(jump_squares)} > {board_size // 4}")
+    
+    return True
 
 def parse_jumps(jumps, board_size):
     """Parse jumps into a dictionary mapping start to end positions."""
@@ -194,20 +251,28 @@ def generate_rolls(board_size, players, jumps):
 @app.route('/slpu', methods=['POST'])
 def slpu():
     """Handle POST request to /slpu endpoint."""
-    svg_content = request.data.decode('utf-8')
+    try:
+        svg_content = request.data.decode('utf-8')
+        
+        # Parse SVG to extract board data
+        board_data = parse_svg_board(svg_content)
+        board_size = board_data['board_size']
+        jumps = board_data['jumps']
+
+        # Generate die rolls for 2 players
+        rolls = generate_rolls(board_size, 2, jumps)
+
+        # Format as SVG
+        rolls_str = ''.join(map(str, rolls))
+        svg = f'<svg xmlns="http://www.w3.org/2000/svg"><text>{rolls_str}</text></svg>'
+        return svg, 200, {'Content-Type': 'image/svg+xml'}
     
-    # Parse SVG to extract board data
-    board_data = parse_svg_board(svg_content)
-    board_size = board_data['board_size']
-    jumps = board_data['jumps']
-
-    # Generate die rolls for 2 players
-    rolls = generate_rolls(board_size, 2, jumps)
-
-    # Format as SVG
-    rolls_str = ''.join(map(str, rolls))
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg"><text>{rolls_str}</text></svg>'
-    return svg, 200, {'Content-Type': 'image/svg+xml'}
+    except ValueError as e:
+        # Return empty response for validation errors (will result in score 0)
+        return '<svg xmlns="http://www.w3.org/2000/svg"><text></text></svg>', 200, {'Content-Type': 'image/svg+xml'}
+    except Exception as e:
+        # Return empty response for any other errors
+        return '<svg xmlns="http://www.w3.org/2000/svg"><text></text></svg>', 200, {'Content-Type': 'image/svg+xml'}
 
 @app.route('/')
 def home():

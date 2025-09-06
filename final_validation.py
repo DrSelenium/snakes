@@ -4,19 +4,15 @@ from unittest.mock import Mock
 print("=== Snakes & Ladders Power Up! - Final Validation ===\n")
 
 # Test SVG matching the challenge format
-svg_content = '''<svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+svg_content = '''<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <marker id="end" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
       <path d="M 0 0 L 8 4 L 0 8" />
     </marker>
   </defs>
   <rect width="100%" height="100%" fill="#f9f9f9" />
-  <line x1="112" y1="48" x2="80" y2="16" stroke="BLUE" marker-end="url(#end)" />
-  <line x1="48" y1="16" x2="16" y2="48" stroke="YELLOW" marker-end="url(#end)" />
-  <line x1="48" y1="80" x2="80" y2="48" stroke="AQUA" marker-end="url(#end)" />
-  <line x1="80" y1="112" x2="112" y2="80" stroke="RED" marker-end="url(#end)" />
-  <line x1="16" y1="80" x2="48" y2="112" stroke="GREEN" marker-end="url(#end)" />
-  <line x1="48" y1="48" x2="80" y2="80" stroke="ORANGE" marker-end="url(#end)" />
+  <line x1="224" y1="480" x2="192" y2="448" stroke="BLUE" marker-end="url(#end)" />
+  <line x1="96" y1="448" x2="64" y2="416" stroke="RED" marker-end="url(#end)" />
 </svg>'''
 
 # Mock the request
